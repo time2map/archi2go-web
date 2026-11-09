@@ -37,6 +37,8 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
 
   return {
+    // Базовый путь сборки: '/' для боевого сайта, '/dev/' для dev-стенда (тот же код, другой префикс).
+    base: env.VITE_BASE_PATH || '/',
     plugins: [react(), tailwindcss(), mapboxWorkerReferrerFallback()],
     define: {
       __APP_VERSION__: JSON.stringify(APP_VERSION),

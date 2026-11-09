@@ -11,9 +11,12 @@ COPY . .
 ARG VITE_ARCHI2GO_BACK_URL=https://archi2api.time2map.com
 ARG VITE_MAPBOX_ACCESS_TOKEN
 ARG VITE_MAPBOX_STYLE=mapbox://styles/mapbox/standard
+# Префикс, под которым живёт сборка: пусто — корень домена, '/dev/' — dev-стенд
+ARG VITE_BASE_PATH=
 ENV VITE_ARCHI2GO_BACK_URL=$VITE_ARCHI2GO_BACK_URL \
     VITE_MAPBOX_ACCESS_TOKEN=$VITE_MAPBOX_ACCESS_TOKEN \
-    VITE_MAPBOX_STYLE=$VITE_MAPBOX_STYLE
+    VITE_MAPBOX_STYLE=$VITE_MAPBOX_STYLE \
+    VITE_BASE_PATH=$VITE_BASE_PATH
 
 RUN npm run build
 

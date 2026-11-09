@@ -12,7 +12,8 @@ if (!root) throw new Error('Root element was not found.');
 
 createRoot(root).render(
   <StrictMode>
-    <BrowserRouter>
+    {/* BASE_URL повторяет base из vite.config.ts: '/dev/' на dev-стенде, '/' на боевом */}
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <App />
     </BrowserRouter>
   </StrictMode>
