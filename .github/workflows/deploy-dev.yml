@@ -1,0 +1,89 @@
+name: Deploy web dev (archi2go.com/dev/)
+
+# dev-стенд сайта: та же сборка, что и боевая, но с base=/dev/ — отдаётся по
+# https://archi2go.com/dev/ для проверки фич. Боевой деплой (main → archi2go.com)
+# этим workflow не затрагивается: свой контейнер, свои теги образа, свой ключ деплоя.
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: deploy-archi2go-web-dev
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+  VITE_ARCHI2GO_BACK_URL: https://api.archi2go.com
+  VITE_MAPBOX_STYLE: mapbox://styles/mapbox/standard
+  # Префикс стенда: попадает в index.html и в basename роутера
+  VITE_BASE_PATH: /dev/
+
+jobs:
+  build:
+    name: Собрать и запушить dev-образ
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:dev-${{ github.sha }}
+            ${{ env.IMAGE }}:dev
+          build-args: |
+            VITE_ARCHI2GO_BACK_URL=${{ env.VITE_ARCHI2GO_BACK_URL }}
+            VITE_MAPBOX_STYLE=${{ env.VITE_MAPBOX_STYLE }}
+            VITE_BASE_PATH=${{ env.VITE_BASE_PATH }}
+            VITE_MAPBOX_ACCESS_TOKEN=${{ secrets.VITE_MAPBOX_ACCESS_TOKEN || vars.VITE_MAPBOX_ACCESS_TOKEN || vars.MAPBOX_ACCESS_TOKEN }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Выкатить на 93.93.117.44 (/dev/)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # Ключ DEPLOY_SSH_KEY_DEV ограничен forced command'ом на деплой web-dev:
+      # им нельзя выкатить боевой сайт.
+      - name: SSH-деплой
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY_DEV }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE_TAG: dev-${{ github.sha }}
+        run: |
+          set -euo pipefail
+          install -m 600 /dev/null "$RUNNER_TEMP/deploy_key"
+          printf '%s\n' "$SSH_KEY" > "$RUNNER_TEMP/deploy_key"
+          ssh -i "$RUNNER_TEMP/deploy_key" \
+              -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts" \
+              root@93.93.117.44 "$IMAGE_TAG" <<< "$GHCR_TOKEN"
+
+      - name: Проверить стенд снаружи
+        run: |
+          set -euo pipefail
+          echo "--- index.html ссылается на /dev/:"
+          curl -s https://archi2go.com/dev/ | grep -o 'src="/dev/assets/[^"]*"' | head -3
+          for u in https://archi2go.com/dev/ https://archi2go.com/dev/design-1/paris; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$u")
+            echo "$u → $code"
+            [ "$code" = 200 ]
+          done
+          echo "--- боевой сайт не затронут:"
+          [ "$(curl -s -o /dev/null -w '%{http_code}' https://archi2go.com/)" = 200 ]
