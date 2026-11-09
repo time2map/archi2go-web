@@ -28,7 +28,6 @@ import {
   PLACE_3D_BEARING,
   PLACE_3D_PITCH,
   PLACE_ZOOM,
-  SHOW_SEARCH,
   readPreviewLoading,
   type CategoryFilter,
   type MapViewportBounds
@@ -36,12 +35,17 @@ import {
 import { isKeyboardNavigation } from './map-screen/inputModality';
 import { detectInitialCityId } from './map-screen/cityLocation';
 import { MapCanvas } from './map-screen/MapCanvas';
+import { resolvePlaceSearch } from './map-screen/placeSearch';
 import {
   focusCityCamera,
   focusPlaceCamera,
   getMapPadding,
+  isAtCameraView,
   isPlaceInsideBounds,
   pickPhotoPlaceIds,
+  restoreCameraView,
+  revealPlaceCamera,
+  type CameraView,
   setPaddingKeepingView,
   setShow3dObjects
 } from './map-screen/mapCamera';
@@ -49,7 +53,7 @@ import { AboutDialog, ContactDialog } from './map-screen/AppMenu';
 import { PhotoLightbox } from './map-screen/PhotoLightbox';
 import { PlacesSidebar } from './map-screen/PlacesSidebar';
 import { cityPath, parseRoute, placePath, requestedCityId } from './map-screen/routes';
-import { PreviewLoadingContext } from './map-screen/ui';
+import { Icon, PreviewLoadingContext } from './map-screen/ui';
 import { useMobileSheet } from './map-screen/useMobileSheet';
 
 function describeLoadError(error: unknown) {
@@ -187,6 +191,11 @@ function MapScreenContent({ cities, initialCity }: { cities: CitySummary[]; init
   const [isCityPending, startCityTransition] = useTransition();
   const [previewPlaceId, setPreviewPlaceId] = useState<string | null>(null);
   const [highlightedPlaceId, setHighlightedPlaceId] = useState<string | null>(null);
+  // The card whose pin was pressed: its place has a popup on the map, which is brought into view.
+  const [revealPlaceId, setRevealPlaceId] = useState<string | null>(null);
+  // The view the map had before a card's pin sent it to that place; pressing the pin again restores it.
+  const savedViewRef = useRef<CameraView | null>(null);
+  const [hasSavedView, setHasSavedView] = useState(false);
   const [buildings3d, setBuildings3d] = useState(() => localStorage.getItem(BUILDINGS_3D_STORAGE_KEY) !== 'off');
   // Only the threshold matters for rendering; storing the raw zoom re-rendered every marker each frame.
   const [atBuildingsZoom, setAtBuildingsZoom] = useState(() => Boolean(initialRoute.placeId));
@@ -234,28 +243,73 @@ function MapScreenContent({ cities, initialCity }: { cities: CitySummary[]; init
 
   const activeCity = cityCache[activeCityId] ?? initialCity;
   const places = activeCity.places;
+
+  /**
+   * The pin on a card: shows that place on the map. Its popup opens, and if the place is out of view (typically
+   * because the map is zoomed in on the last opened place) the map steps back to the overview to find it.
+   * The view it left is kept: the pin pressed again, or the Back button on the map, takes the map back there.
+   */
+  const keepSavedView = useCallback((view: CameraView | null) => {
+    savedViewRef.current = view;
+    setHasSavedView(view !== null);
+  }, []);
+  const forgetSavedView = useCallback(() => keepSavedView(null), [keepSavedView]);
+  const returnToSavedView = useCallback(() => {
+    setRevealPlaceId(null);
+    const map = mapRef.current;
+    const view = savedViewRef.current;
+    if (!map || !view) return;
+    restoreCameraView(map, view);
+    // Kept until the camera is really there: another pin can cut the trip short, and the original view stays.
+    map.once('moveend', () => {
+      if (savedViewRef.current === view && isAtCameraView(map, view)) forgetSavedView();
+    });
+  }, [forgetSavedView]);
+  const locatePlace = useCallback(
+    (place: CuratedPlace) => {
+      if (revealPlaceId === place.id) {
+        returnToSavedView();
+        return;
+      }
+      setRevealPlaceId(place.id);
+      const map = mapRef.current;
+      if (!map) return;
+      const left = revealPlaceCamera(map, place);
+      if (left && !savedViewRef.current) keepSavedView(left);
+    },
+    [keepSavedView, returnToSavedView, revealPlaceId]
+  );
+  // A card that goes away (new search, category, city or an opened place) takes its popup, and the way back, with it.
+  useEffect(() => {
+    forgetSavedView();
+    setRevealPlaceId(null);
+  }, [activeCityId, activeCategory, forgetSavedView, query, selectedPlaceId]);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !map) return;
+    // Whoever moves the map by hand has chosen a view: it is never taken away to restore an old one.
+    const onUserMove = (event: object) => {
+      if ('originalEvent' in event && event.originalEvent) forgetSavedView();
+    };
+    const events = ['dragstart', 'zoomstart', 'rotatestart', 'pitchstart'] as const;
+    for (const name of events) map.on(name, onUserMove);
+    return () => {
+      for (const name of events) map.off(name, onUserMove);
+    };
+  }, [forgetSavedView, mapReady]);
   const availableFilters = useMemo(
     () => FILTERS.filter((filter) => filter.value === 'all' || places.some((place) => place.category === filter.value)),
     [places]
   );
-    const normalizedQuery = query.trim().toLocaleLowerCase();
-  const matchesQuery = useCallback(
-    (place: CuratedPlace) =>
-        !normalizedQuery ||
-        [place.title, place.architect, place.area, place.year]
-          .filter(Boolean)
-        .some((value) => value?.toLocaleLowerCase().includes(normalizedQuery)),
-    [normalizedQuery]
+  // The selected category is searched first; other categories, close names and recommendations top up a short result.
+  const placeSearch = useMemo(
+    () => resolvePlaceSearch(places, query, activeCategory),
+    [activeCategory, places, query]
   );
-  const visiblePlaces = useMemo(
-    () =>
-      places.filter(
-        (place) => (activeCategory === 'all' || place.category === activeCategory) && matchesQuery(place)
-      ),
-    [activeCategory, matchesQuery, places]
-  );
-  // Category filter fades the other map pins instead of removing them. Search still hides non-matches.
-  const mapPlaces = useMemo(() => places.filter(matchesQuery), [matchesQuery, places]);
+  const visiblePlaces = placeSearch.places;
+  // While searching, the list is already the set of pins to draw, so the category fade stays off.
+  const categoryScope: CategoryFilter = query.trim() ? 'all' : activeCategory;
+  const mapPlaces = useMemo(() => (query.trim() ? visiblePlaces : places), [places, query, visiblePlaces]);
   const selectedPlace = useMemo(
     () => places.find((place) => place.id === selectedPlaceId) ?? null,
     [places, selectedPlaceId]
@@ -263,20 +317,30 @@ function MapScreenContent({ cities, initialCity }: { cities: CitySummary[]; init
   const renderedMapPlaces = useMemo(
     () =>
       mapViewportBounds
-        ? mapPlaces.filter((place) => place.id === selectedPlaceId || isPlaceInsideBounds(place, mapViewportBounds))
+        ? mapPlaces.filter(
+            (place) =>
+              place.id === selectedPlaceId || place.id === revealPlaceId || isPlaceInsideBounds(place, mapViewportBounds)
+          )
         : mapPlaces,
-    [mapPlaces, mapViewportBounds, selectedPlaceId]
+    [mapPlaces, mapViewportBounds, revealPlaceId, selectedPlaceId]
   );
   // Recomputed per settled viewport (mapViewportBounds changes on moveend), not per frame.
+  // The place shown from a card stays a photo pin after the camera steps back to the overview,
+  // where it would otherwise be one of the squares.
   const photoPlaceIds = useMemo(() => {
     const map = mapRef.current;
-    if (!map || !mapViewportBounds) return new Set(visiblePlaces.slice(0, MAX_PHOTO_PINS).map((place) => place.id));
-    return pickPhotoPlaceIds(map, visiblePlaces, selectedPlaceId);
-  }, [mapViewportBounds, selectedPlaceId, visiblePlaces]);
+    const ids =
+      !map || !mapViewportBounds
+        ? new Set(visiblePlaces.slice(0, MAX_PHOTO_PINS).map((place) => place.id))
+        : pickPhotoPlaceIds(map, visiblePlaces, selectedPlaceId);
+    if (revealPlaceId && revealPlaceId !== selectedPlaceId) ids.add(revealPlaceId);
+    return ids;
+  }, [mapViewportBounds, revealPlaceId, selectedPlaceId, visiblePlaces]);
   selectedPlaceRef.current = selectedPlace;
+  const popupPlaceId = previewPlaceId ?? revealPlaceId;
   const previewPlace =
-    previewPlaceId && previewPlaceId !== selectedPlaceId
-      ? (places.find((place) => place.id === previewPlaceId) ?? null)
+    popupPlaceId && popupPlaceId !== selectedPlaceId
+      ? (places.find((place) => place.id === popupPlaceId) ?? null)
       : null;
 
   const clearSelection = useCallback(
@@ -396,18 +460,6 @@ function MapScreenContent({ cities, initialCity }: { cities: CitySummary[]; init
   }, []);
 
   useEffect(() => {
-    if (!SHOW_SEARCH) return;
-    const focusSearch = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault();
-        searchRef.current?.focus();
-      }
-    };
-    window.addEventListener('keydown', focusSearch);
-    return () => window.removeEventListener('keydown', focusSearch);
-  }, []);
-
-  useEffect(() => {
     const map = mapRef.current;
     if (!mapReady || !map) return;
     // Sheet level changes don't touch the camera: every camera move passes the current padding itself.
@@ -518,7 +570,7 @@ function MapScreenContent({ cities, initialCity }: { cities: CitySummary[]; init
           selectedPlace={selectedPlace}
           selectedPlaceId={selectedPlaceId}
           renderedMapPlaces={renderedMapPlaces}
-          activeCategory={activeCategory}
+          activeCategory={categoryScope}
           photoPlaceIds={photoPlaceIds}
           previewPlace={previewPlace}
           previewPlaceId={previewPlaceId}
@@ -539,12 +591,16 @@ function MapScreenContent({ cities, initialCity }: { cities: CitySummary[]; init
           onPreviewHover={previewOnHover}
           onToggleBuildings3d={toggleBuildings3d}
           onMapClick={() => {
+                setRevealPlaceId(null);
                 if (!selectedPlaceId) return;
                 setPreviewPlaceId(null);
                 setHighlightedPlaceId(null);
                 clearSelection();
               }}
-          onDragStart={() => setPreviewPlaceId(null)}
+          onDragStart={() => {
+            setPreviewPlaceId(null);
+            setRevealPlaceId(null);
+          }}
           changeSheetLevel={changeSheetLevel}
         />
 
@@ -556,7 +612,7 @@ function MapScreenContent({ cities, initialCity }: { cities: CitySummary[]; init
           cityPending={cityPending}
           previewLoading={previewLoading}
           loadingMode={loadingMode}
-          visiblePlaces={visiblePlaces}
+          search={placeSearch}
           availableFilters={availableFilters}
           activeCategory={activeCategory}
           query={query}
@@ -576,7 +632,20 @@ function MapScreenContent({ cities, initialCity }: { cities: CitySummary[]; init
           onOpenAbout={() => setAboutOpen(true)}
           onOpenContact={() => setContactOpen(true)}
           onSetHighlightedPlaceId={setHighlightedPlaceId}
+          locatedPlaceId={revealPlaceId}
+          onLocatePlace={locatePlace}
         />
+
+        {hasSavedView && !selectedPlaceId ? (
+          <button
+            className="v2-map-back"
+            type="button"
+            aria-label="Back to the previous map view"
+            onClick={returnToSavedView}>
+            <Icon name="arrow-left" />
+            <span>Back</span>
+          </button>
+        ) : null}
 
         {!MAPBOX_TOKEN && (
           <div

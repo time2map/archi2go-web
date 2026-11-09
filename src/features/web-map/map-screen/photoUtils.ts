@@ -25,11 +25,11 @@ export function largePhotoUrl(photo: PlacePhoto) {
   return resizeThumb(photo.src || photo.thumb, LIGHTBOX_WIDTH);
 }
 
-// List thumbs are about 128px. A large file scaled into that box looks noisy.
-// 250px is the next smaller width Wikimedia actually serves.
+// List cards are ~220-290 CSS px wide, so 500px stays sharp on 2x screens without pulling a large file.
+// 500 is one of the widths Wikimedia actually serves.
 export function listPhotoUrl(photo: PlacePhoto) {
   const source = photo.src || photo.thumb;
-  return resizeThumb(source, 250) ?? source;
+  return resizeThumb(source, 500) ?? source;
 }
 
 export function googleMapsUrl(place: CuratedPlace) {

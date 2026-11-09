@@ -69,6 +69,18 @@ export function Icon({ name }: { name: IconName }) {
         />
         <path d="m20 20-4-4" />
       </>
+    ),
+    // A square on a stem: the app's own map pin, reduced to lines.
+    pin: (
+      <>
+        <rect
+          x="7"
+          y="3.5"
+          width="10"
+          height="10"
+        />
+        <path d="M12 13.5V21" />
+      </>
     )
   };
 
@@ -188,7 +200,7 @@ export function PhotoCredit({ photo }: { photo: PlacePhoto }) {
 export function PlaceListSkeleton({ count = 8 }: { count?: number }) {
   return (
     <div
-      className="v2-results-skeleton"
+      className="v2-results-skeleton v2-place-grid"
       aria-hidden="true">
       {Array.from({ length: count }, (_, index) => (
         <article
@@ -198,9 +210,7 @@ export function PlaceListSkeleton({ count = 8 }: { count?: number }) {
             <span className="v2-skeleton" />
           </span>
           <span className="v2-place-copy">
-            <span className="v2-skel-line is-kicker" />
             <span className="v2-skel-line is-title" />
-            <span className="v2-skel-line is-text" />
             <span className="v2-skel-line is-meta" />
           </span>
         </article>

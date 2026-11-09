@@ -36,8 +36,6 @@ export const MOBILE_QUERY_WIDTH = 820;
 export const LIGHTBOX_WIDTH = 1920;
 export const SHORTCUT_MODIFIER =
   typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl';
-// Temporarily hidden after the product review. Keep the implementation ready to restore.
-export const SHOW_SEARCH = false;
 // true: cities and places come from the backend API; false: from the bundled files in src/top.
 export const USE_BACKEND = true;
 export const CITY_STORAGE_KEY = 'archi2go-city-v2';
@@ -59,7 +57,8 @@ export type IconName =
   | 'location'
   | 'menu'
   | 'message'
-  | 'search';
+  | 'search'
+  | 'pin';
 
 export const SHEET_LEVELS: SheetLevel[] = ['peek', 'half', 'full'];
 
