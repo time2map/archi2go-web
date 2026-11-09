@@ -1,8 +1,8 @@
 name: Deploy web dev (archi2go.com/dev/)
 
-# dev-стенд сайта: та же сборка, что и боевая, но с base=/dev/ — отдаётся по
-# https://archi2go.com/dev/ для проверки фич. Боевой деплой (main → archi2go.com)
-# этим workflow не затрагивается: свой контейнер, свои теги образа, свой ключ деплоя.
+# dev-стенд сайта на своём поддомене https://dev.archi2go.com для проверки фич.
+# Боевой деплой (main → archi2go.com) этим workflow не затрагивается:
+# свой контейнер, свои теги образа, свой ключ деплоя.
 on:
   push:
     branches: [dev]
@@ -20,8 +20,6 @@ env:
   IMAGE: ghcr.io/${{ github.repository }}
   VITE_ARCHI2GO_BACK_URL: https://api.archi2go.com
   VITE_MAPBOX_STYLE: mapbox://styles/mapbox/standard
-  # Префикс стенда: попадает в index.html и в basename роутера
-  VITE_BASE_PATH: /dev/
 
 jobs:
   build:
@@ -49,13 +47,12 @@ jobs:
           build-args: |
             VITE_ARCHI2GO_BACK_URL=${{ env.VITE_ARCHI2GO_BACK_URL }}
             VITE_MAPBOX_STYLE=${{ env.VITE_MAPBOX_STYLE }}
-            VITE_BASE_PATH=${{ env.VITE_BASE_PATH }}
             VITE_MAPBOX_ACCESS_TOKEN=${{ secrets.VITE_MAPBOX_ACCESS_TOKEN || vars.VITE_MAPBOX_ACCESS_TOKEN || vars.MAPBOX_ACCESS_TOKEN }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   deploy:
-    name: Выкатить на 93.93.117.44 (/dev/)
+    name: Выкатить на 93.93.117.44 (dev.archi2go.com)
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -78,9 +75,9 @@ jobs:
       - name: Проверить стенд снаружи
         run: |
           set -euo pipefail
-          echo "--- index.html ссылается на /dev/:"
-          curl -s https://archi2go.com/dev/ | grep -o 'src="/dev/assets/[^"]*"' | head -3
-          for u in https://archi2go.com/dev/ https://archi2go.com/dev/design-1/paris; do
+          echo "--- index.html ссылается на /assets/:"
+          curl -s https://dev.archi2go.com/ | grep -o 'src="/assets/index-[^"]*"' | head -3
+          for u in https://dev.archi2go.com/ https://dev.archi2go.com/design-1/paris; do
             code=$(curl -s -o /dev/null -w '%{http_code}' "$u")
             echo "$u → $code"
             [ "$code" = 200 ]
