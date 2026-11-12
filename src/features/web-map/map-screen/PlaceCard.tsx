@@ -22,17 +22,12 @@ function prefersReducedMotion() {
 export function PlaceCard({
   place,
   highlighted,
-  located,
-  onLocate,
   onSelect,
   onMouseEnter,
   onMouseLeave
 }: {
   place: CuratedPlace;
   highlighted: boolean;
-  /** The map is showing this place with its popup. */
-  located: boolean;
-  onLocate: (place: CuratedPlace) => void;
   onSelect: (place: CuratedPlace) => void;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
@@ -126,7 +121,7 @@ export function PlaceCard({
   return (
     <article
       id={`v2-place-${place.id}`}
-      className={`v2-place-row${highlighted ? ' is-highlighted' : ''}${located ? ' is-located' : ''}`}
+      className={`v2-place-row${highlighted ? ' is-highlighted' : ''}`}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       onKeyDown={onKeyDown}>
@@ -157,23 +152,6 @@ export function PlaceCard({
             ))}
           </div>
         ) : null}
-
-        <button
-          className="v2-place-locate"
-          type="button"
-          tabIndex={-1}
-          aria-pressed={located}
-          aria-label={`Show ${place.title} on the map`}
-          title="Show on map"
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            // Like the arrows, this must not fall through to the photo, which opens the place.
-            event.stopPropagation();
-            onLocate(place);
-          }}
-          onDoubleClick={(event) => event.stopPropagation()}>
-          <Icon name="pin" />
-        </button>
 
         {hasGallery ? (
           <>

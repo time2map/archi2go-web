@@ -636,41 +636,6 @@
   .v2-city-trigger:hover > .v2-icon { color: var(--v2-ink); }
 }
 
-.v2-title-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 14px;
-  margin-top: 28px;
-}
-.v2-title-row p {
-  margin: 0 0 10px;
-  color: var(--v2-muted);
-  font-family: var(--v2-font-mono);
-  font-size: 11px;
-  letter-spacing: .06em;
-  line-height: 1.35;
-  text-transform: uppercase;
-}
-.v2-title-row h1 { margin: 0; max-width: 13ch; font-size: 34px; font-weight: 600; font-stretch: 92%; line-height: 1; letter-spacing: -.035em; text-wrap: balance; }
-.v2-place-count {
-  display: grid;
-  align-items: end;
-  justify-items: end;
-  padding-left: 16px;
-  border-left: 1px solid var(--v2-line);
-  white-space: nowrap;
-}
-.v2-place-count strong {
-  color: var(--v2-ink);
-  font-size: 34px;
-  font-weight: 350;
-  font-stretch: 92%;
-  font-variant-numeric: tabular-nums;
-  line-height: .86;
-  letter-spacing: -.04em;
-}
-
 /*
  * Filter row: category tabs and search share one line, and one rule underlines it.
  * Opening: the other tabs sink into the line; the selected tab slides right, to where the field's category
@@ -936,7 +901,6 @@
     grid-template-columns: minmax(0, 1fr) minmax(0, 232px) 44px;
     grid-template-areas:
       "brand city menu"
-      "title title title"
       "filters filters filters";
     align-items: center;
     column-gap: 8px;
@@ -954,26 +918,6 @@
   .v2-city-menu { left: auto; width: 320px; transform-origin: top right; }
 
   .v2-filter-bar { grid-area: filters; margin-top: 18px; }
-
-  .v2-title-row {
-    grid-area: title;
-    margin: 20px calc(var(--v2-gutter) * -1) 0;
-    padding: 24px var(--v2-gutter) 0;
-    border-top: 1px solid var(--v2-ink);
-    align-items: end;
-    gap: 16px;
-  }
-  .v2-title-row h1 { max-width: none; }
-  .v2-place-count { align-self: stretch; min-width: 64px; }
-  .v2-title-row.is-pending > div {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-  .v2-title-row.is-pending .v2-skel-line.is-kicker { width: 48px; height: 8px; }
-  .v2-title-row.is-pending .v2-skel-line.is-title { width: 240px; max-width: 100%; height: 26px; }
-  .v2-title-row.is-pending .v2-place-count .v2-skel-line { width: 44px; height: 28px; }
 }
 
 .v2-lightbox-nav {
@@ -1142,6 +1086,13 @@
   background: var(--v2-placeholder);
   cursor: pointer;
 }
+/* On desktop the photo is a 4:3 landscape frame, and two full rows (four cards) always fit the list: on a
+   short laptop screen it crops further instead of pushing the second row out of view. 371px is the header,
+   footer, grid padding, two-line titles and row gap around those two rows. */
+@media (min-width: 820px) {
+  .v2-place-grid { row-gap: 22px; }
+  .v2-place-thumb { aspect-ratio: 4 / 3; max-height: max(120px, calc((100dvh - 371px) / 2)); }
+}
 /* Native scroll-snap: swipe on touch, trackpad and arrows on desktop; no drag handlers to maintain. */
 .v2-place-track {
   position: absolute;
@@ -1188,39 +1139,6 @@
 .v2-place-nav[aria-disabled="true"] { cursor: default; }
 .v2-place-nav[aria-disabled="true"] .v2-icon { opacity: .3; }
 .v2-place-nav:active { transform: scale(.94); }
-/* "Show on map": the carousel arrows' sibling, in grey glass: the app's pin (a square on a stem) inside. Top left,
-   shown with the arrows. Pressed, it is solid and the square fills while the place is shown on the map. */
-.v2-place-locate {
-  position: absolute;
-  z-index: 2;
-  top: 8px;
-  left: 8px;
-  width: 32px;
-  height: 32px;
-  display: none;
-  place-items: center;
-  padding: 0;
-  border: 1px solid var(--v2-hairline);
-  border-radius: var(--v2-radius-sm);
-  color: var(--v2-ink);
-  background: rgba(62, 61, 57, .58);
-  backdrop-filter: blur(8px);
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 160ms ease, background-color 150ms ease, color 150ms ease, border-color 150ms ease,
-    transform 150ms ease;
-}
-.v2-place-locate .v2-icon { width: 20px; height: 20px; stroke-width: 1.8; }
-.v2-place-locate .v2-icon rect { transition: fill 150ms ease; }
-.v2-place-locate:active { transform: scale(.94); }
-.v2-place-locate[aria-pressed="true"] .v2-icon rect { fill: currentColor; }
-.v2-place-locate[aria-pressed="true"] {
-  border-color: var(--v2-ink);
-  color: var(--v2-surface);
-  background: var(--v2-ink);
-  opacity: 1;
-}
-.design-variant-two .v2-place-locate:focus-visible { outline-offset: 2px; }
 .v2-place-dots {
   position: absolute;
   z-index: 2;
@@ -1246,16 +1164,6 @@
 @media (hover: hover) and (pointer: fine) {
   .v2-place-nav { display: grid; }
 }
-/* The map sits beside the list only where there is a pointer and room for it. */
-@media (hover: hover) and (pointer: fine) and (min-width: 820px) {
-  .v2-place-locate { display: grid; }
-  .v2-place-row:hover .v2-place-locate,
-  .v2-place-row.is-highlighted .v2-place-locate,
-  .v2-place-row:has(.v2-place-hit:focus-visible) .v2-place-locate,
-  .v2-place-locate:focus-visible { opacity: 1; }
-  .v2-place-locate[aria-pressed="false"]:hover { background: rgba(62, 61, 57, .86); }
-  .v2-place-locate[aria-pressed="true"]:hover { background: var(--v2-accent-hover); }
-}
 @media (hover: hover) and (pointer: fine) {
   .v2-place-row:hover .v2-place-nav,
   .v2-place-row.is-highlighted .v2-place-nav,
@@ -1266,7 +1174,6 @@
   .v2-place-track { scroll-behavior: auto; }
   .v2-place-thumb img,
   .v2-place-nav,
-  .v2-place-locate,
   .v2-place-dots i { transition: none; }
 }
 .v2-place-thumb::after {
@@ -1687,39 +1594,6 @@
   background: var(--v2-surface);
   box-shadow: var(--v2-shadow-float);
 }
-/* Back to the view a card's pin left: it floats at the map strip's corner, beside the other map notices. */
-.v2-map-back {
-  position: absolute;
-  z-index: 15;
-  top: 24px;
-  left: calc(var(--v2-sidebar) + 24px);
-  min-height: 40px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 16px 0 12px;
-  border: 1px solid var(--v2-line-strong);
-  border-radius: var(--v2-radius-sm);
-  color: var(--v2-ink);
-  background: var(--v2-surface);
-  box-shadow: var(--v2-shadow-float);
-  font-size: 14px;
-  font-weight: 550;
-  letter-spacing: -.005em;
-  cursor: pointer;
-  animation: v2-map-back-in 260ms var(--v2-ease) both;
-  transition: background-color 150ms ease, transform 150ms ease;
-}
-.v2-map-back .v2-icon { width: 18px; height: 18px; }
-.v2-map-back:active { transform: scale(.97); }
-@media (hover: hover) {
-  .v2-map-back:hover { background: var(--v2-surface-raised); }
-}
-@keyframes v2-map-back-in {
-  from { opacity: 0; transform: translateY(-6px); }
-  to { opacity: 1; transform: none; }
-}
-@media (max-width: 819px) { .v2-map-back { display: none; } }
 .v2-state-card strong { font-size: 17px; font-weight: 600; letter-spacing: -.015em; }
 .v2-state-card span { color: var(--v2-ink-soft); font-size: 14px; line-height: 1.55; }
 .v2-loading,
@@ -2411,15 +2285,6 @@ button.v2-popup-media:hover img { transform: scale(1.03); }
     padding: 22px var(--v2-gutter) 0;
   }
   .v2-brand { display: none; }
-  .v2-title-row {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    margin: -1px;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-  }
   .v2-city-select { grid-area: city; justify-self: start; max-width: 100%; margin: 0; }
   .v2-city-trigger {
     min-height: 44px;

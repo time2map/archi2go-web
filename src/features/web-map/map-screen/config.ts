@@ -57,8 +57,7 @@ export type IconName =
   | 'location'
   | 'menu'
   | 'message'
-  | 'search'
-  | 'pin';
+  | 'search';
 
 export const SHEET_LEVELS: SheetLevel[] = ['peek', 'half', 'full'];
 

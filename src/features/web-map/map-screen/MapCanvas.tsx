@@ -108,6 +108,8 @@ export function MapCanvas({
   const loggedZoomRef = useRef<string | null>(null);
   const orbitCancelRef = useRef<(() => void) | null>(null);
   const orbitingRef = useRef(false);
+  // Last settled zoom — used to detect crossing into the 3D buildings band.
+  const lastZoomRef = useRef<number | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [isOrbiting, setIsOrbiting] = useState(false);
 
@@ -236,6 +238,7 @@ export function MapCanvas({
             bindCompassReset(event.target);
             event.target.setPadding(getMapPadding());
             const zoom = event.target.getZoom();
+            lastZoomRef.current = zoom;
             updateZoomModes(zoom);
             applied3dObjects.set(event.target, buildings3dRef.current);
             syncPoiVisibility(event.target);
@@ -254,6 +257,8 @@ export function MapCanvas({
             onMapClick();
           }}
           onZoomStart={(event) => {
+            // Pinch and wheel set originalEvent. The +/- control does not — threshold
+            // crossing in onZoomEnd still picks that up via lastZoomRef.
             if ('originalEvent' in event && event.originalEvent) {
               stopOrbit();
               isUserZoomingRef.current = true;
@@ -274,14 +279,24 @@ export function MapCanvas({
           // }}
           onZoomEnd={(event) => {
             syncPoiVisibility(event.target);
-            updateZoomModes(event.viewState.zoom);
-            if (!isUserZoomingRef.current) return;
+            const zoom = event.viewState.zoom;
+            const previousZoom = lastZoomRef.current;
+            lastZoomRef.current = zoom;
+            updateZoomModes(zoom);
+            const crossedInto3d =
+              previousZoom !== null && previousZoom < BUILDINGS_3D_MIN_ZOOM && zoom >= BUILDINGS_3D_MIN_ZOOM;
+            const crossedOutOf3d =
+              previousZoom !== null && previousZoom >= BUILDINGS_3D_MIN_ZOOM && zoom < BUILDINGS_3D_MIN_ZOOM;
+            const wasUserZoom = isUserZoomingRef.current;
             isUserZoomingRef.current = false;
+            // Crossing the 3D band via +/- has no originalEvent on zoomstart; still treat it as user intent.
+            if (!wasUserZoom && !crossedInto3d && !crossedOutOf3d) return;
             const map = mapRef.current;
             if (!map) return;
-            if (buildings3dRef.current && event.viewState.zoom >= BUILDINGS_3D_MIN_ZOOM) {
-              // Keep a tilt the user set by hand; only lift a flat map into 3D.
-              if (map.getPitch() > 20) return;
+            if (buildings3dRef.current && zoom >= BUILDINGS_3D_MIN_ZOOM) {
+              // On the phone a pinch often leaves a shallow accidental tilt (touchPitch).
+              // Only skip when the camera is already at the designed 3D angle.
+              if (map.getPitch() >= PLACE_3D_PITCH - 5) return;
               map.stop();
               map.easeTo({
                 pitch: PLACE_3D_PITCH,
@@ -290,10 +305,11 @@ export function MapCanvas({
               });
               return;
             }
-            // On the phone a hand-set tilt stays; the desktop overview drops back to top-down.
-            if (!isMobileSheet && map.getPitch() > 0.5) {
+            // Leaving the 3D band returns the map to 2D, on the phone too. Below it, a tilt set by hand
+            // on the phone stays; the desktop overview always drops back to top-down.
+            if ((crossedOutOf3d || !isMobileSheet) && map.getPitch() > 0.5) {
               map.stop();
-              map.easeTo({ pitch: 0, duration: 180 });
+              map.easeTo(crossedOutOf3d ? { pitch: 0, bearing: 0, duration: 420 } : { pitch: 0, duration: 180 });
             }
           }}
           onDragStart={() => {

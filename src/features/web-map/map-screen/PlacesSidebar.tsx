@@ -56,9 +56,7 @@ export function PlacesSidebar({
   onOpenPhoto,
   onOpenAbout,
   onOpenContact,
-  onSetHighlightedPlaceId,
-  locatedPlaceId,
-  onLocatePlace
+  onSetHighlightedPlaceId
 }: {
   cities: CitySummary[];
   activeCity: CuratedCity;
@@ -87,9 +85,6 @@ export function PlacesSidebar({
   onOpenAbout: () => void;
   onOpenContact: () => void;
   onSetHighlightedPlaceId: (updater: string | null | ((current: string | null) => string | null)) => void;
-  /** The card whose pin is pressed: its place is shown on the map with a popup. */
-  locatedPlaceId: string | null;
-  onLocatePlace: (place: CuratedPlace) => void;
 }) {
   // The sidebar can remount (desktop/mobile switch) while a query is live; the field must stay open for it.
   const [searchOpen, setSearchOpen] = useState(() => query.trim() !== '');
@@ -276,21 +271,7 @@ export function PlacesSidebar({
               onContact={onOpenContact}
             />
 
-            <div className={`v2-title-row${cityPending ? ' is-pending' : ''}`}>
-              <div>
-                {cityPending ? (
-                  <>
-                    <span className="v2-skel-line is-kicker" />
-                    <span className="v2-skel-line is-title" />
-                  </>
-                ) : (
-                  <>
-                    <p>{activeCity.country}</p>
-                    <h1>Places worth noticing</h1>
-                  </>
-                )}
-              </div>
-            </div>
+            <h1 className="v2-visually-hidden">{activeCity.name} places</h1>
 
             {/* Categories and search share one row: the field unrolls over the tabs from the toggle. */}
             <div
@@ -428,8 +409,6 @@ export function PlacesSidebar({
                           key={place.id}
                           place={place}
                           highlighted={highlightedPlaceId === place.id || previewPlaceId === place.id}
-                          located={locatedPlaceId === place.id}
-                          onLocate={onLocatePlace}
                           onSelect={onSelectPlace}
                           onMouseEnter={() => onSetHighlightedPlaceId(place.id)}
                           onMouseLeave={() =>

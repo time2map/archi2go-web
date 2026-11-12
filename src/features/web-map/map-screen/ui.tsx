@@ -69,18 +69,6 @@ export function Icon({ name }: { name: IconName }) {
         />
         <path d="m20 20-4-4" />
       </>
-    ),
-    // A square on a stem: the app's own map pin, reduced to lines.
-    pin: (
-      <>
-        <rect
-          x="7"
-          y="3.5"
-          width="10"
-          height="10"
-        />
-        <path d="M12 13.5V21" />
-      </>
     )
   };
 
