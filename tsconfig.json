@@ -20,5 +20,6 @@
       "@features/*": ["src/features/*"]
     }
   },
-  "include": ["src/main.tsx", "src/App.tsx", "src/vite-env.d.ts", "src/features/web-map/**/*.ts", "src/features/web-map/**/*.tsx", "src/top/**/*.json", "vite.config.ts"]
+  "include": ["src/main.tsx", "src/App.tsx", "src/vite-env.d.ts", "src/features/web-map/**/*.ts", "src/features/web-map/**/*.tsx", "vite.config.ts"],
+  "exclude": ["src/features/web-map/DesktopMapScreen.tsx"]
 }
