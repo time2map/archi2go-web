@@ -17,7 +17,7 @@ export type SearchStatus = 'matches' | 'other-categories' | 'similar' | 'none';
 export type PlaceSearchResult = {
   status: SearchStatus;
   sections: SearchSection[];
-  /** Every place shown, in order. This is also what the map draws. */
+  /** Every place shown in the result list, in order. Search does not alter the map markers. */
   places: CuratedPlace[];
   /** Places that actually answer the query. Recommendations are not counted. */
   matchCount: number;

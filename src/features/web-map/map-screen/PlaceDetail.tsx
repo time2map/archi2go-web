@@ -35,6 +35,11 @@ function PopupPlaceholder({ place, city }: { place: CuratedPlace; city: CuratedC
 export function PlaceDetail({
   place,
   city,
+  previousPlace,
+  nextPlace,
+  placePosition,
+  placeCount,
+  onNavigatePlace,
   onBack,
   onOpenPhoto,
   onOpenMenu,
@@ -43,6 +48,11 @@ export function PlaceDetail({
 }: {
   place: CuratedPlace;
   city: CuratedCity;
+  previousPlace: CuratedPlace | null;
+  nextPlace: CuratedPlace | null;
+  placePosition: number | null;
+  placeCount: number;
+  onNavigatePlace: (place: CuratedPlace) => void;
   onBack: () => void;
   onOpenPhoto: (index: number) => void;
   onOpenMenu: () => void;
@@ -133,6 +143,33 @@ export function PlaceDetail({
           />
         </div>
       </div>
+      {placePosition !== null && placeCount > 1 ? (
+        <nav
+          className="v2-detail-sequence"
+          aria-label="Move between places in the current list">
+          <button
+            type="button"
+            disabled={!previousPlace}
+            onClick={() => previousPlace && onNavigatePlace(previousPlace)}
+            aria-label={previousPlace ? `Previous place: ${previousPlace.title}` : 'No previous place'}>
+            <Icon name="chevron-left" />
+            <span>Previous</span>
+          </button>
+          <span
+            className="v2-detail-sequence-count"
+            aria-label={`Place ${placePosition} of ${placeCount}`}>
+            {placePosition} / {placeCount}
+          </span>
+          <button
+            type="button"
+            disabled={!nextPlace}
+            onClick={() => nextPlace && onNavigatePlace(nextPlace)}
+            aria-label={nextPlace ? `Next place: ${nextPlace.title}` : 'No next place'}>
+            <span>Next</span>
+            <Icon name="chevron-right" />
+          </button>
+        </nav>
+      ) : null}
 
       <article
         className="v2-detail"

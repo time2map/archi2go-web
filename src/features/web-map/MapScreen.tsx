@@ -49,7 +49,7 @@ import { AboutDialog, ContactDialog } from './map-screen/AppMenu';
 import { PhotoLightbox } from './map-screen/PhotoLightbox';
 import { PlacesSidebar } from './map-screen/PlacesSidebar';
 import { cityPath, parseRoute, placePath, requestedCityId } from './map-screen/routes';
-import { PreviewLoadingContext } from './map-screen/ui';
+import { Icon, PreviewLoadingContext } from './map-screen/ui';
 import { useMobileSheet } from './map-screen/useMobileSheet';
 
 function describeLoadError(error: unknown) {
@@ -215,11 +215,8 @@ function MapScreenContent({ cities, initialCity }: { cities: CitySummary[]; init
   const {
     isMobileSheet,
     sheetLevel,
-    sheetHeightsRef,
     isMobileSheetRef,
-    sheetLevelRef,
     mainRef,
-    asideRef,
     viewport,
     mainStyle,
     changeSheetLevel,
@@ -239,33 +236,61 @@ function MapScreenContent({ cities, initialCity }: { cities: CitySummary[]; init
     () => FILTERS.filter((filter) => filter.value === 'all' || places.some((place) => place.category === filter.value)),
     [places]
   );
+  const activeCategoryLabel =
+    availableFilters.find((filter) => filter.value === activeCategory)?.label ?? 'All places';
+
+  const focusSearch = useCallback(() => {
+    if (isMobileSheet) sheet.openMobileSearch(searchRef);
+    else searchRef.current?.focus({ preventScroll: true });
+  }, [isMobileSheet, searchRef, sheet]);
+
+  useEffect(() => {
+    const openSearch = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'k') return;
+      event.preventDefault();
+      focusSearch();
+    };
+    window.addEventListener('keydown', openSearch);
+    return () => window.removeEventListener('keydown', openSearch);
+  }, [focusSearch]);
+
   // The selected category is searched first; other categories, close names and recommendations top up a short result.
   const placeSearch = useMemo(
     () => resolvePlaceSearch(places, query, activeCategory),
     [activeCategory, places, query]
   );
   const visiblePlaces = placeSearch.places;
-  // While searching, the list is already the set of pins to draw, so the category fade stays off.
-  const categoryScope: CategoryFilter = query.trim() ? 'all' : activeCategory;
-  const mapPlaces = useMemo(() => (query.trim() ? visiblePlaces : places), [places, query, visiblePlaces]);
+  // Search only reshuffles the panel. Keep the map's category and marker presentation stable while typing.
+  const mapPhotoPlaces = useMemo(
+    () => places.filter((place) => activeCategory === 'all' || place.category === activeCategory),
+    [activeCategory, places]
+  );
   const selectedPlace = useMemo(
     () => places.find((place) => place.id === selectedPlaceId) ?? null,
     [places, selectedPlaceId]
   );
+  const selectedListIndex = selectedPlace
+    ? visiblePlaces.findIndex((place) => place.id === selectedPlace.id)
+    : -1;
+  const previousPlace = selectedListIndex > 0 ? visiblePlaces[selectedListIndex - 1]! : null;
+  const nextPlace =
+    selectedListIndex >= 0 && selectedListIndex < visiblePlaces.length - 1
+      ? visiblePlaces[selectedListIndex + 1]!
+      : null;
   const renderedMapPlaces = useMemo(
     () =>
       mapViewportBounds
-        ? mapPlaces.filter((place) => place.id === selectedPlaceId || isPlaceInsideBounds(place, mapViewportBounds))
-        : mapPlaces,
-    [mapPlaces, mapViewportBounds, selectedPlaceId]
+        ? places.filter((place) => place.id === selectedPlaceId || isPlaceInsideBounds(place, mapViewportBounds))
+        : places,
+    [mapViewportBounds, places, selectedPlaceId]
   );
   // Recomputed per settled viewport (mapViewportBounds changes on moveend), not per frame.
   const photoPlaceIds = useMemo(() => {
     const map = mapRef.current;
     return !map || !mapViewportBounds
-      ? new Set(visiblePlaces.slice(0, MAX_PHOTO_PINS).map((place) => place.id))
-      : pickPhotoPlaceIds(map, visiblePlaces, selectedPlaceId);
-  }, [mapViewportBounds, selectedPlaceId, visiblePlaces]);
+      ? new Set(mapPhotoPlaces.slice(0, MAX_PHOTO_PINS).map((place) => place.id))
+      : pickPhotoPlaceIds(map, mapPhotoPlaces, selectedPlaceId);
+  }, [mapPhotoPlaces, mapViewportBounds, selectedPlaceId]);
   selectedPlaceRef.current = selectedPlace;
   const previewPlace =
     previewPlaceId && previewPlaceId !== selectedPlaceId
@@ -284,14 +309,17 @@ function MapScreenContent({ cities, initialCity }: { cities: CitySummary[]; init
   );
 
   const selectPlace = useCallback(
-    (place: CuratedPlace, moveCamera = true) => {
+    (place: CuratedPlace, moveCamera = true, replaceHistory = false) => {
       setSelectedPlaceId(place.id);
       setPreviewPlaceId(null);
       setHighlightedPlaceId(null);
       if (isMobileSheetRef.current) changeSheetLevel('half');
       lastSelectedIdRef.current = place.id;
       const nextPath = placePath(activeCityId, place.id);
-      if (window.location.pathname !== nextPath) window.history.pushState({ placeId: place.id }, '', nextPath);
+      if (window.location.pathname !== nextPath) {
+        const method = replaceHistory ? 'replaceState' : 'pushState';
+        window.history[method]({ placeId: place.id }, '', nextPath);
+      }
       if (moveCamera && mapRef.current) focusPlaceCamera(mapRef.current, place, buildings3dRef.current);
     },
     [activeCityId, changeSheetLevel, isMobileSheetRef]
@@ -445,20 +473,10 @@ function MapScreenContent({ cities, initialCity }: { cities: CitySummary[]; init
   useEffect(() => {
     if (selectedPlaceId || !lastSelectedIdRef.current) return;
     const row = document.getElementById(`v2-place-${lastSelectedIdRef.current}`);
-    const list = row?.closest<HTMLElement>('.v2-results');
-    if (!row || !list) return;
-    // scrollIntoView would also scroll the clipped page and shove the map off screen.
-    const listRect = list.getBoundingClientRect();
-    const sheetTop = asideRef.current?.getBoundingClientRect().top ?? listRect.top;
-    // On mobile the lower part of the list sits below the screen; centre within the settled sheet.
-    const visibleHeight = isMobileSheetRef.current
-      ? sheetHeightsRef.current[sheetLevelRef.current]! - (listRect.top - sheetTop)
-      : list.clientHeight;
-    list.scrollTop += row.getBoundingClientRect().top - listRect.top - (visibleHeight - row.offsetHeight) / 2;
-    if (isKeyboardNavigation() && (!document.activeElement || document.activeElement === document.body)) {
+    if (row && isKeyboardNavigation() && (!document.activeElement || document.activeElement === document.body)) {
       row.querySelector<HTMLButtonElement>('.v2-place-hit')?.focus({ preventScroll: true });
     }
-  }, [asideRef, isMobileSheetRef, selectedPlaceId, sheetHeightsRef, sheetLevelRef]);
+  }, [selectedPlaceId]);
 
   useEffect(() => {
     if (!selectedPlaceId || lightbox || aboutOpen || contactOpen) return;
@@ -499,7 +517,7 @@ function MapScreenContent({ cities, initialCity }: { cities: CitySummary[]; init
           selectedPlace={selectedPlace}
           selectedPlaceId={selectedPlaceId}
           renderedMapPlaces={renderedMapPlaces}
-          activeCategory={categoryScope}
+          activeCategory={activeCategory}
           photoPlaceIds={photoPlaceIds}
           previewPlace={previewPlace}
           previewPlaceId={previewPlaceId}
@@ -531,6 +549,45 @@ function MapScreenContent({ cities, initialCity }: { cities: CitySummary[]; init
           changeSheetLevel={changeSheetLevel}
         />
 
+        <div className={`v2-map-search${query ? ' has-value' : ''}`} role="search">
+          <label htmlFor="v2-map-search-input" className="v2-visually-hidden">
+            Search places or architects
+          </label>
+          <Icon name="search" />
+          <input
+            id="v2-map-search-input"
+            ref={searchRef as Ref<HTMLInputElement>}
+            type="search"
+            enterKeyHint="search"
+            value={query}
+            onFocus={() => {
+              if (isMobileSheet && sheetLevel !== 'full') sheet.openMobileSearch(searchRef);
+            }}
+            onChange={(event) => {
+              setQuery(event.target.value);
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== 'Escape') return;
+              event.preventDefault();
+              event.stopPropagation();
+              setQuery('');
+              event.currentTarget.blur();
+            }}
+            placeholder="Place or architect"
+            autoComplete="off"
+            spellCheck={false}
+            aria-describedby="v2-map-search-category"
+          />
+          <span id="v2-map-search-category" className="v2-map-search-category">
+            {activeCategoryLabel}
+          </span>
+          {query ? (
+            <button type="button" className="v2-map-search-clear" onClick={() => setQuery('')} aria-label="Clear search">
+              <Icon name="close" />
+            </button>
+          ) : null}
+        </div>
+
         <PlacesSidebar
           cities={cities}
           activeCity={activeCity}
@@ -543,18 +600,20 @@ function MapScreenContent({ cities, initialCity }: { cities: CitySummary[]; init
           availableFilters={availableFilters}
           activeCategory={activeCategory}
           query={query}
-          selectedPlaceId={selectedPlaceId}
           highlightedPlaceId={highlightedPlaceId}
           previewPlaceId={previewPlaceId}
-          searchRef={searchRef}
           isMobileSheet={isMobileSheet}
           sheetLevel={sheetLevel}
           sheet={sheet}
           onSelectCity={selectCity}
           onSelectPlace={selectPlace}
+          previousPlace={previousPlace}
+          nextPlace={nextPlace}
+          placePosition={selectedListIndex >= 0 ? selectedListIndex + 1 : null}
+          placeCount={visiblePlaces.length}
+          onNavigatePlace={(place) => selectPlace(place, true, true)}
           onClearSelection={clearSelection}
           onChangeCategory={changeCategory}
-          onSetQuery={setQuery}
           onOpenPhoto={(index) => detailPlace && setLightbox({ place: detailPlace, index })}
           onOpenAbout={() => setAboutOpen(true)}
           onOpenContact={() => setContactOpen(true)}

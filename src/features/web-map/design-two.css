@@ -70,6 +70,72 @@
 }
 
 .v2-map-canvas { position: absolute; inset: 0; }
+.v2-map-search {
+  position: absolute;
+  z-index: 18;
+  top: 24px;
+  left: calc(var(--v2-sidebar) + 24px);
+  width: min(430px, calc(100vw - var(--v2-sidebar) - 96px));
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 0 4px 0 16px;
+  border: 1px solid var(--v2-line-strong);
+  border-radius: var(--v2-radius-sm);
+  color: var(--v2-ink);
+  background: color-mix(in srgb, var(--v2-surface) 96%, transparent);
+  box-shadow: var(--v2-shadow-float);
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+.v2-map-search:focus-within {
+  border-color: var(--v2-ink);
+  background: var(--v2-surface);
+  box-shadow: var(--v2-shadow-float), 0 0 0 2px var(--v2-focus);
+}
+.v2-map-search > .v2-icon { width: 18px; height: 18px; color: var(--v2-muted); }
+.v2-map-search:focus-within > .v2-icon,
+.v2-map-search.has-value > .v2-icon { color: var(--v2-ink); }
+.v2-map-search input {
+  min-width: 0;
+  width: 100%;
+  height: 50px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  appearance: none;
+  background: transparent;
+  font-size: 16px;
+  font-weight: 450;
+  letter-spacing: -.01em;
+}
+.design-variant-two .v2-map-search input:focus-visible { outline: 0; }
+.v2-map-search input::placeholder { color: var(--v2-muted); opacity: 1; }
+.v2-map-search input::-webkit-search-cancel-button,
+.v2-map-search input::-webkit-search-decoration { appearance: none; display: none; }
+.v2-map-search-category {
+  color: var(--v2-ink-soft);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.v2-map-search-clear {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--v2-radius-sm);
+  color: var(--v2-muted);
+  background: transparent;
+  cursor: pointer;
+}
+.v2-map-search-clear .v2-icon { width: 18px; height: 18px; }
+@media (hover: hover) {
+  .v2-map-search-clear:hover { color: var(--v2-ink); background: var(--v2-surface-muted); }
+}
 .design-variant-two .mapboxgl-map,
 .design-variant-two .mapboxgl-ctrl { font: inherit; }
 .design-variant-two .mapboxgl-canvas:focus { outline: none; }
@@ -636,24 +702,15 @@
   .v2-city-trigger:hover > .v2-icon { color: var(--v2-ink); }
 }
 
-/*
- * Filter row: category tabs and search share one line, and one rule underlines it.
- * Opening: the other tabs sink into the line; the selected tab slides right, to where the field's category
- * label sits, while the rule spreads from it across the row; then the field rises out of the line.
- * Closing plays the same steps backwards.
- * Everything moves with transform/opacity only, so it stays on the compositor.
- */
+/* Filter row: category tabs stay in the list panel; search floats over the map. */
 .v2-filter-bar {
   --bar-pad: 0px;
-  --search-size: 45px;
-  --rule-ease: cubic-bezier(.65, 0, .2, 1);
   position: relative;
   display: flex;
   align-items: center;
   margin: 22px 0 -1px;
   padding: 0 var(--bar-pad);
 }
-/* Tabs and the field share this box. It clips, so the tabs vanish into the rule and rise back out of it. */
 .v2-filter-stage {
   position: relative;
   flex: 1 1 auto;
@@ -661,7 +718,7 @@
   display: flex;
   overflow: hidden;
 }
-/* The one underline: it marks the selected tab, and spreads across the row while searching. */
+/* One measured underline marks the selected category. */
 .v2-filter-rule {
   position: absolute;
   z-index: 3;
@@ -673,132 +730,9 @@
   transform-origin: 0 50%;
   transform: translateX(var(--rule-x, 0px)) scaleX(var(--rule-scale, 0));
   pointer-events: none;
-  /* closing: the word fades back in first, then the rule narrows with it.
-     Same functions as the open state, so the line travels instead of popping on at the end. */
-  transition: transform 460ms var(--rule-ease) 140ms, opacity 200ms ease;
+  transition: transform 320ms var(--v2-ease), opacity 150ms ease;
 }
 .v2-filter-rule.is-unmarked { opacity: 0; }
-.v2-filter-bar.is-searching .v2-filter-rule {
-  opacity: 1;
-  transform: translateX(0) scaleX(1);
-  /* opening: wait for the tabs to sink, then spread */
-  transition-delay: 200ms, 0s;
-}
-
-.v2-search {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-  padding: 0 4px 0 2px;
-  cursor: text;
-  visibility: hidden;
-  transition: visibility 0s linear 160ms;
-}
-.v2-filter-bar.is-searching .v2-search { visibility: visible; transition-delay: 0s; }
-.v2-search > * {
-  opacity: 0;
-  transform: translateY(14px);
-  transition: opacity 140ms ease, transform 140ms ease;
-}
-.v2-filter-bar.is-searching .v2-search > * {
-  opacity: 1;
-  transform: none;
-  transition: opacity 280ms ease 460ms, transform 420ms var(--v2-ease) 460ms;
-}
-.v2-search > .v2-icon { width: 18px; height: 18px; color: var(--v2-muted); }
-.v2-search:focus-within > .v2-icon,
-.v2-search.has-value > .v2-icon { color: var(--v2-ink); }
-.v2-search input {
-  min-width: 0;
-  width: 100%;
-  height: 100%;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  outline: 0;
-  appearance: none;
-  background: transparent;
-  font-size: 16px;
-  font-weight: 450;
-  letter-spacing: -.01em;
-}
-.design-variant-two .v2-search input:focus-visible { outline: 0; }
-.v2-search input::placeholder { color: var(--v2-muted); font-weight: 400; opacity: 1; }
-.v2-search input::-webkit-search-cancel-button,
-.v2-search input::-webkit-search-decoration { appearance: none; display: none; }
-.v2-search > .v2-search-category {
-  /* It takes over from the selected tab the moment that tab has arrived, so it neither rises nor lags the field. */
-  opacity: 0;
-  transform: none;
-  transition: opacity 120ms ease;
-  padding-right: 4px;
-  color: var(--v2-ink-soft);
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: -.005em;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-/* Search is the last control in the row: an icon behind a hairline divider. Open, it becomes the close cross. */
-.v2-filter-bar.is-searching .v2-search > .v2-search-category {
-  opacity: 1;
-  transform: none;
-  transition: opacity 140ms ease 540ms;
-}
-.v2-search-toggle {
-  position: relative;
-  z-index: 4;
-  flex: 0 0 auto;
-  min-width: 46px;
-  height: var(--search-size);
-  display: grid;
-  place-items: center;
-  margin-left: 8px;
-  padding: 0 0 0 10px;
-  border: 0;
-  color: var(--v2-muted);
-  background: none;
-  cursor: pointer;
-  transition: color 150ms ease;
-}
-.v2-search-toggle::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 13px;
-  bottom: 13px;
-  width: 1px;
-  background: var(--v2-line-strong);
-}
-.design-variant-two .v2-search-toggle:focus-visible { outline-offset: -2px; }
-.v2-search-toggle .v2-icon {
-  grid-area: 1 / 1;
-  width: 18px;
-  height: 18px;
-  transition: opacity 200ms ease, transform 380ms var(--v2-ease);
-}
-.v2-search-toggle .v2-icon:last-child { opacity: 0; transform: rotate(-90deg) scale(.5); }
-.v2-filter-bar.is-searching .v2-search-toggle { color: var(--v2-ink); }
-.v2-filter-bar.is-searching .v2-search-toggle .v2-icon:first-child { opacity: 0; transform: rotate(90deg) scale(.5); }
-.v2-filter-bar.is-searching .v2-search-toggle .v2-icon:last-child { opacity: 1; transform: none; }
-@media (hover: hover) {
-  .v2-search-toggle:hover { color: var(--v2-ink); }
-}
-/* Reduced motion keeps the state change but drops the travel: a plain cross-fade. */
-@media (prefers-reduced-motion: reduce) {
-  .v2-filter-rule,
-  .v2-filter-bar.is-searching .v2-filter-rule { transition: none; }
-  .v2-filters button,
-  .v2-filter-bar.is-searching .v2-filters button { transform: none; transition: opacity 120ms ease; }
-  .v2-search > *,
-  .v2-filter-bar.is-searching .v2-search > *,
-  .v2-filter-bar.is-searching .v2-search > .v2-search-category { transform: none; transition: opacity 120ms ease; }
-  .v2-search-toggle .v2-icon { transition: opacity 120ms ease; transform: none !important; }
-}
 
 .v2-sheet-handle { display: none; }
 
@@ -825,15 +759,9 @@
   scrollbar-width: none;
   scroll-padding-inline: 12px;
   mask-image: linear-gradient(90deg, #000 calc(100% - var(--filters-fade)), transparent);
-  /* closing: the fade returns once the selected tab has left the edge */
-  transition: --filters-fade 200ms ease 560ms;
+  transition: --filters-fade 200ms ease;
 }
 .v2-filters::-webkit-scrollbar { display: none; }
-.v2-filter-bar.is-searching .v2-filters {
-  --filters-fade: 0px;
-  pointer-events: none;
-  transition: --filters-fade 160ms ease;
-}
 .v2-filters button {
   position: relative;
   flex: 0 0 auto;
@@ -853,37 +781,7 @@
   letter-spacing: -.005em;
   white-space: nowrap;
   cursor: pointer;
-  /* closing: the other tabs rise back once the rule has narrowed to the selected one */
-  transition: color 150ms ease, border-color 150ms ease, opacity 260ms ease 480ms,
-    transform 460ms var(--v2-ease) 480ms;
-}
-/* opening: drop below the stage's edge, where the clip hides them */
-.v2-filter-bar.is-searching .v2-filters button:not(.is-active) {
-  opacity: 0;
-  transform: translateY(110%);
-  transition: color 150ms ease, border-color 150ms ease, opacity 200ms ease 60ms,
-    transform 260ms cubic-bezier(.5, 0, .9, .4);
-}
-/* The selected tab stays put while the others sink, then slides right in step with the rule,
-   and hands over to the field's category label. Closing fades it back in where it left, already
-   underlined, and only then carries it home with the rule. */
-.v2-filters button.is-active {
-  transform: translateX(0);
-  transition: color 150ms ease, border-color 150ms ease, opacity 140ms ease,
-    transform 460ms var(--rule-ease) 140ms;
-}
-.v2-filter-bar.is-searching .v2-filters button.is-active {
-  opacity: 0;
-  transform: translateX(var(--tab-shift, 0px));
-  transition: color 150ms ease, border-color 150ms ease, opacity 140ms ease 540ms,
-    transform 460ms var(--rule-ease) 200ms;
-}
-@media (prefers-reduced-motion: reduce) {
-  .v2-filters button.is-active,
-  .v2-filter-bar.is-searching .v2-filters button.is-active {
-    transform: none;
-    transition: opacity 120ms ease;
-  }
+  transition: color 150ms ease, border-color 150ms ease;
 }
 /* The shared .v2-filter-rule draws the selected tab's underline. */
 .v2-filters button.is-active {
@@ -1273,6 +1171,41 @@
   text-transform: uppercase;
   white-space: nowrap;
 }
+.v2-detail-sequence {
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 4px var(--v2-gutter);
+  border-bottom: 1px solid var(--v2-line);
+}
+.v2-detail-sequence button {
+  min-width: 0;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--v2-radius-sm);
+  color: var(--v2-ink);
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.v2-detail-sequence button:last-child { justify-content: flex-end; }
+.v2-detail-sequence button:disabled { color: var(--v2-faint); cursor: default; }
+.v2-detail-sequence button .v2-icon { width: 16px; height: 16px; }
+.v2-detail-sequence-count {
+  color: var(--v2-muted);
+  font-family: var(--v2-font-mono);
+  font-size: 10.5px;
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
 .v2-detail {
   min-height: 0;
   overflow-y: auto;
@@ -1581,7 +1514,7 @@
 .v2-state-card {
   position: absolute;
   z-index: 15;
-  top: 24px;
+  top: 92px;
   left: calc(var(--v2-sidebar) + 24px);
   max-width: 390px;
   display: flex;
@@ -1615,7 +1548,7 @@
   letter-spacing: .04em;
   text-transform: uppercase;
 }
-.v2-loading { top: 24px; }
+.v2-loading { top: 92px; }
 .v2-offline { bottom: 24px; border-left: 2px solid var(--v2-accent); }
 .v2-loading > span {
   position: relative;
@@ -2226,6 +2159,17 @@ button.v2-popup-media:hover img { transform: scale(1.03); }
     --v2-sheet-settled: var(--v2-mobile-panel-height);
     --v2-sheet-ease: cubic-bezier(.22, 1, .36, 1);
   }
+  .v2-map-search {
+    z-index: 25;
+    top: calc(env(safe-area-inset-top) + 12px);
+    left: 12px;
+    right: 12px;
+    width: auto;
+    min-height: 48px;
+    grid-template-columns: 20px minmax(0, 1fr) auto auto;
+    padding-left: 14px;
+  }
+  .v2-map-search input { height: 46px; font-size: 16px; }
   /* The sheet keeps its full height and slides with transform, so dragging never relayouts the list. */
   .v2-sidebar {
     inset: auto 0 0;
@@ -2316,9 +2260,6 @@ button.v2-popup-media:hover img { transform: scale(1.03); }
     mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 20px), transparent 100%);
   }
   .v2-filters button { min-height: 45px; font-size: 14px; }
-  /* 16px stops iOS from zooming the page when the field takes focus. */
-  .v2-search input { font-size: 16px; }
-
   .v2-sidebar-footer { min-height: 44px; padding: 0 var(--v2-gutter); justify-content: flex-start; }
   [data-sheet="peek"] .v2-sidebar-footer,
   [data-sheet="half"] .v2-sidebar-footer { display: none; }
@@ -2417,8 +2358,8 @@ button.v2-popup-media:hover img { transform: scale(1.03); }
   .v2-about-card { width: 100%; padding: 28px 22px 0; }
   .v2-contact-card { padding-bottom: 24px; }
   .v2-about-footer { margin: 24px -22px 0; padding: 0 22px; }
-  .v2-state-card { top: 14px; right: 14px; max-width: none; }
-  .v2-loading { top: 14px; }
+  .v2-state-card { top: calc(env(safe-area-inset-top) + 76px); right: 14px; max-width: none; }
+  .v2-loading { top: calc(env(safe-area-inset-top) + 76px); }
   .v2-offline { bottom: calc(var(--v2-mobile-panel-height) + 14px); }
   .design-variant-two .mapboxgl-ctrl-top-right {
     top: calc((100% - min(var(--v2-mobile-panel-height), 60%)) / 2);
@@ -2473,6 +2414,10 @@ button.v2-popup-media:hover img { transform: scale(1.03); }
   }
   .v2-popup-meta { margin-top: 18px; }
   .v2-popup-directions { min-height: 56px; }
+}
+
+@media (max-width: 460px) {
+  .v2-map-search-category { display: none; }
 }
 
 /* A wide bottom sheet (tablet portrait) fits three photo columns; a very narrow phone only one. */
